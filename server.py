@@ -1,6 +1,5 @@
 import cv2
 import dlib
-import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 from imutils.face_utils import FaceAligner
@@ -33,15 +32,13 @@ detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor('shape_predictor_68_face_landmarks.dat')
 fa = FaceAligner(predictor, desiredFaceWidth=160)
 
-image = None
-person_conf_multi = None
-
-@app.route('/load', methods=['POST','GET'])
-def load():
-    global image
+@app.route('/detection', methods=['POST','GET'])
+def detection():
     f = None
+    rects = None
     if request.method == 'POST':
         f = request.files.get('f')
+        rects = request.form.get('rects')
     else:
         f = request.args.get('f')
     if f is None:
@@ -52,21 +49,15 @@ def load():
     except Exception as e:
         print(e)
         return jsonify({'no': 404, 'msg': '找不到文件'})
-    return jsonify({'no': 200})
-
-@app.route('/detection')
-def detection():
-    global person_conf_multi
-    global image
-
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    rects = detector(gray, 2)
+    if rects is None or len(rects) == 0: rects = detector(gray, 2)
     rect_nums = len(rects)
     XY, data = [], []
     if rect_nums > 0:
         aligned_images = []
         for i in range(rect_nums):
             aligned_image = fa.align(image, gray, rects[i])
+            print(rects[i], aligned_image.shape)
             aligned_images.append(aligned_image)
             (x, y, w, h) = rect_to_bb(rects[i])
             image = cv2.rectangle(image, (x, y), (x + w, y + h), color=(255, 0, 0), thickness=2)
@@ -79,6 +70,6 @@ def detection():
             data.append({'rect':XY[i],'age':float(ages[i]),'gender':int(genders[i])})
 
     return jsonify({'no':200,'data':data})
-    
+
 if __name__ == '__main__':
     app.run('127.0.0.1', 3009)
